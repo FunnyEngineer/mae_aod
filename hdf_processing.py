@@ -65,12 +65,10 @@ def plot_qa_table(img_qa, img_aod):
 
 def get_055_data(hdf_file):
     data_055 = hdf_file.select('Optical_Depth_055')[:]
-    data_055 = data_055.astype(np.float32)
+    data_055 = data_055.astype(np.float64)
     data_055[data_055 == -28672] = np.nan
-    data_055 = data_055 * 0.001
-    masked_055 = np.ma.array(data_055, mask=np.isnan(data_055))
-
-    return masked_055
+    # data_055 = data_055 * 0.001
+    return data_055
 
 def get_qa_data(hdf_file):
     binary_repr_v = np.vectorize(np.binary_repr)
@@ -128,9 +126,23 @@ def plot_cover_ratio():
     fig.show()
     
     pdb.set_trace()
+    
+def calculate_global_mean_std(path):
+    total_array = np.array([])
+    file_name_list = os.listdir(path)
+    for file_name in file_name_list:
+        file_path = os.path.join(path, file_name)
+
+        hdf = SD(file_path, SDC.READ)
+        data_055 = get_055_data(hdf)
+        flatten = data_055[~np.isnan(data_055)]
+        total_array = np.concatenate([total_array, flatten])
+    print(total_array.mean(), total_array.std())
+    pdb.set_trace()
 
 if __name__ == '__main__':
     # transfer_hdf(
     #     '/home/niyogi_shared/ting_yu/data/maiac/MCD19A2.A2023048.h08v05.006.2023050091938.hdf')
     # test_overlad_rate('./maiac')
-    plot_cover_ratio()
+    # plot_cover_ratio()
+    calculate_global_mean_std('./maiac/CA_2018_2023')
