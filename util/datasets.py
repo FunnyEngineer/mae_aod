@@ -10,8 +10,13 @@
 
 import os
 import PIL
+from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
+
+import numpy as np
 
 from torchvision import datasets, transforms
+from torch.utils.data import Dataset
+from pyhdf.SD import SD, SDC
 
 from timm.data import create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
@@ -63,3 +68,82 @@ def build_transform(is_train, args):
     t.append(transforms.ToTensor())
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
+
+def hdf_aod_loader(path: str, code: str) -> Any:
+    # preprocessing the aod value
+    hdf_file = SD(path, SDC.READ)
+    data = hdf_file.select(f'Optical_Depth_{code}')[:]
+    data = data.astype(np.float16)
+    data[data == -28672] = np.nan
+    data = data * 0.001
+    return data
+
+class AODDataset(Dataset):
+    """Dataset type for MODIS AOD MCD19A2"""
+    
+    def __init__(
+        self, 
+        root: str, 
+        aod_code: str,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None,
+        loader: Callable[[str], Any] = hdf_aod_loader,
+        ):
+        """
+        Args:
+            root (string):Root directory path.
+            transform (callable, optional): Optional transform to be applied on samples.
+        """
+        super().__init__(root, transform=transform, target_transform=target_transform)
+        samples = self.make_dataset(self.root)
+        
+        self.code = aod_code
+        self.loader = loader
+        
+        self.samples = samples
+        self.targets = [s[1] for s in samples]
+    
+    @staticmethod
+    def make_dataset(directory: str):
+        """Generate a list of smaples of a form (path_to_sample, class)
+
+        Args:
+            directory (str): root dataset directory, corresponding to ``self.root``.
+            aod_code (str): variables name for aod, 047 or 055
+        """
+        samples = []
+        file_list = os.listdir(directory)
+        for file_name in file_list:
+            path = os.path.join(directory, file_name)
+            samples.append(path, file_name)
+
+        return samples
+    
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            Tuple[Any, Any]: (sample, target) where target is class_index of the target class.
+        """
+        path, target = self.samples[index]
+        sample = self.loader(path, self.code)
+        if self.transform is not None:
+            sample = self.transform(sample)
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return sample, target
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+def get_aod_data(file_path, code='055'):
+    # preprocessing the aod value
+    hdf_file = SD(file_path, SDC.READ)
+    data = hdf_file.select(f'Optical_Depth_{code}')[:]
+    data = data.astype(np.float32)
+    data[data == -28672] = np.nan
+    data = data * 0.001
+    return data
