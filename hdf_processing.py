@@ -105,7 +105,7 @@ def transfer_hdf(file_path):
 def test_overlad_rate(file_dir):
 
     file_name_list = os.listdir(file_dir)
-    result_df = pd.DataFrame(columns=['File Name', 'Ratio'])
+    result_df = pd.DataFrame(columns=['File Name', 'Order', 'Ratio'])
     for file_name in file_name_list:
         file_path = os.path.join(file_dir, file_name)
 
@@ -114,8 +114,8 @@ def test_overlad_rate(file_dir):
 
         for i in range(masked_055.shape[0]):
             masked_img = masked_055[i]
-            ratio = (masked_img.mask == False).sum() / masked_img.size
-            result_df.loc[len(result_df.index)] = [f'{file_name}_{i}', ratio]
+            ratio = (~np.isnan(masked_img)).sum() / masked_img.size
+            result_df.loc[len(result_df.index)] = [f'{file_name}', i, ratio]
     
     result_df.to_csv('cover_ratio.csv')
     pdb.set_trace()
@@ -143,6 +143,6 @@ def calculate_global_mean_std(path):
 if __name__ == '__main__':
     # transfer_hdf(
     #     '/home/niyogi_shared/ting_yu/data/maiac/MCD19A2.A2023048.h08v05.006.2023050091938.hdf')
-    # test_overlad_rate('./maiac')
+    test_overlad_rate('./maiac/CA_2018_2023')
     # plot_cover_ratio()
-    calculate_global_mean_std('./maiac/CA_2018_2023')
+    # calculate_global_mean_std('./maiac/CA_2018_2023')
