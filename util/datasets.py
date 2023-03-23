@@ -94,9 +94,10 @@ class AODDataset(Dataset):
             root (string):Root directory path.
             transform (callable, optional): Optional transform to be applied on samples.
         """
-        super().__init__(root, transform=transform, target_transform=target_transform)
+        # super().__init__(root, transform=transform, target_transform=target_transform)
         samples = self.make_dataset(self.root)
         
+        self.root = root
         self.code = aod_code
         self.loader = loader
         

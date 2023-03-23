@@ -128,7 +128,7 @@ def plot_cover_ratio():
     pdb.set_trace()
     
 def calculate_global_mean_std(path):
-    total_array = np.array([])
+    df = pd.DataFrame(columns=['n_sum', ''])
     file_name_list = os.listdir(path)
     for file_name in file_name_list:
         file_path = os.path.join(path, file_name)
