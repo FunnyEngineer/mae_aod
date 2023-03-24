@@ -130,7 +130,7 @@ def main(args):
             transforms.RandomHorizontalFlip(),
             transforms.Normalize(mean=[0.485], std=[0.229])])
     # TODO: Write a custom dataset for aod data
-    dataset_train = AODDataset('./maiac/CA_2018_2023', aod_code='055', transform=transform_train)
+    dataset_train = AODDataset('./maiac/CA_2018_2023', table_file='cover_ratio.csv', aod_code='055', transform=transform_train)
     # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     print(dataset_train)
     
