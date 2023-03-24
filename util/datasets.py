@@ -13,6 +13,7 @@ import PIL
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import pandas as pd
 
 import torch
 from torchvision import datasets, transforms
@@ -70,10 +71,10 @@ def build_transform(is_train, args):
     t.append(transforms.Normalize(mean, std))
     return transforms.Compose(t)
 
-def hdf_aod_loader(path: str, code: str) -> Any:
+def hdf_aod_loader(path: str, code: str, order: str) -> Any:
     # preprocessing the aod value
     hdf_file = SD(path, SDC.READ)
-    data = hdf_file.select(f'Optical_Depth_{code}')[:]
+    data = hdf_file.select(f'Optical_Depth_{code}')[:][order]
     data = data.astype(np.float16)
     data[data == -28672] = np.nan
     data = data * 0.001
@@ -86,6 +87,7 @@ class AODDataset(Dataset):
     def __init__(
         self, 
         root: str, 
+        table_file: str, 
         aod_code: str,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
@@ -101,7 +103,8 @@ class AODDataset(Dataset):
         self.root = root
         self.transform = transform
         self.target_transform = target_transform
-        samples = self.make_dataset(self.root)
+        data_df = pd.read_csv(table_file, indexl_col=0)
+        samples = self.make_dataset(self.root, data_df)
         
         self.root = root
         self.code = aod_code
@@ -111,18 +114,17 @@ class AODDataset(Dataset):
         self.targets = [s[1] for s in samples]
     
     @staticmethod
-    def make_dataset(directory: str):
+    def make_dataset(directory: str, data_df:pd.DataFrame):
         """Generate a list of smaples of a form (path_to_sample, class)
 
         Args:
             directory (str): root dataset directory, corresponding to ``self.root``.
-            aod_code (str): variables name for aod, 047 or 055
+            table_file (DataFrame): cover ratio data table for files
         """
         samples = []
-        file_list = os.listdir(directory)
-        for file_name in file_list:
-            path = os.path.join(directory, file_name)
-            samples.append((path, file_name))
+        for i, row in data_df.iterrows():
+            path = os.path.join(directory, row['File Name'])
+            samples.append((path, row['Order'], row['Ratio']))
 
         return samples
     
@@ -134,8 +136,8 @@ class AODDataset(Dataset):
         Returns:
             Tuple[Any, Any]: (sample, target) where target is class_index of the target class.
         """
-        path, target = self.samples[index]
-        sample = self.loader(path, self.code)
+        path, order, target = self.samples[index]
+        sample = self.loader(path, self.code, order)
         if self.transform is not None:
             sample = self.transform(sample)
         if self.target_transform is not None:
