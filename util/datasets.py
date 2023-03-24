@@ -14,6 +14,7 @@ from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 
+import torch
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset
 from pyhdf.SD import SD, SDC
@@ -76,7 +77,8 @@ def hdf_aod_loader(path: str, code: str) -> Any:
     data = data.astype(np.float16)
     data[data == -28672] = np.nan
     data = data * 0.001
-    return data
+    data = data[np.newaxis, ...]
+    return torch.from_numpy(data)
 
 class AODDataset(Dataset):
     """Dataset type for MODIS AOD MCD19A2"""
@@ -94,7 +96,11 @@ class AODDataset(Dataset):
             root (string):Root directory path.
             transform (callable, optional): Optional transform to be applied on samples.
         """
-        # super().__init__(root, transform=transform, target_transform=target_transform)
+        # super().__init__(root, transform=transform, target_transform=target_transform)        
+        # for backwards-compatibility
+        self.root = root
+        self.transform = transform
+        self.target_transform = target_transform
         samples = self.make_dataset(self.root)
         
         self.root = root
@@ -116,7 +122,7 @@ class AODDataset(Dataset):
         file_list = os.listdir(directory)
         for file_name in file_list:
             path = os.path.join(directory, file_name)
-            samples.append(path, file_name)
+            samples.append((path, file_name))
 
         return samples
     

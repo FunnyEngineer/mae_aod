@@ -15,6 +15,7 @@ import numpy as np
 import os
 import time
 from pathlib import Path
+import pdb
 
 import torch
 import torch.backends.cudnn as cudnn
@@ -30,6 +31,7 @@ import timm.optim.optim_factory as optim_factory
 import util.misc as misc
 from util.misc import NativeScalerWithGradNormCount as NativeScaler
 from util.datasets import AODDataset
+from util.add_weight_decay import add_weight_decay
 
 import models_mae
 
@@ -123,15 +125,15 @@ def main(args):
     # simple augmentation
     # TODO: take some transforms out since the data format is different
     transform_train = transforms.Compose([
+            # transforms.ToTensor(),
             transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
+            transforms.Normalize(mean=[0.485], std=[0.229])])
     # TODO: Write a custom dataset for aod data
     dataset_train = AODDataset('./maiac/CA_2018_2023', aod_code='055', transform=transform_train)
     # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
     print(dataset_train)
-
+    
     if True:  # args.distributed:
         num_tasks = misc.get_world_size()
         global_rank = misc.get_rank()
@@ -157,6 +159,7 @@ def main(args):
     )
     
     # define the model
+    print(f'loaded model = {args.model}')
     model = models_mae.__dict__[args.model](norm_pix_loss=args.norm_pix_loss)
 
     model.to(device)
@@ -180,7 +183,7 @@ def main(args):
         model_without_ddp = model.module
     
     # following timm: set wd as 0 for bias and norm layers
-    param_groups = optim_factory.add_weight_decay(model_without_ddp, args.weight_decay)
+    param_groups = add_weight_decay(model_without_ddp, args.weight_decay)
     optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
     print(optimizer)
     loss_scaler = NativeScaler()
