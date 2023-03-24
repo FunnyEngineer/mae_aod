@@ -8,6 +8,7 @@ from pyhdf.SD import SD, SDC
 import pdb
 import pprint
 import os
+import math
 
 
 explain_dict = {
@@ -126,6 +127,29 @@ def plot_cover_ratio():
     fig.show()
     
     pdb.set_trace()
+
+def calculate_global_mean_std_incremental(path):
+    n = 0
+    mean = 0
+    M2 = 0
+
+    file_name_list = os.listdir(path)
+    for name in file_name_list:
+        file_path = os.path.join(path, name)
+        hdf = SD(file_path, SDC.READ)
+        data_055 = get_055_data(hdf)
+        flatten = data_055[~np.isnan(data_055)]
+        for x in flatten:
+            n += 1
+            delta = x - mean
+            mean += delta / n
+            M2 += delta * (x - mean)
+
+    if n < 2:
+        return math.nan, math.nan
+    else:
+        variance = M2 / (n - 1)
+        return mean, math.sqrt(variance)
     
 def calculate_global_mean_std(path):
     df = pd.DataFrame(columns=['n_sum', ''])
@@ -143,6 +167,7 @@ def calculate_global_mean_std(path):
 if __name__ == '__main__':
     # transfer_hdf(
     #     '/home/niyogi_shared/ting_yu/data/maiac/MCD19A2.A2023048.h08v05.006.2023050091938.hdf')
-    test_overlad_rate('./maiac/CA_2018_2023')
+    # test_overlad_rate('./maiac/CA_2018_2023')
     # plot_cover_ratio()
     # calculate_global_mean_std('./maiac/CA_2018_2023')
+    calculate_global_mean_std_incremental('./maiac/CA_2018_2023')
