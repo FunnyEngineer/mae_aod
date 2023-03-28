@@ -170,4 +170,6 @@ if __name__ == '__main__':
     # test_overlad_rate('./maiac/CA_2018_2023')
     # plot_cover_ratio()
     # calculate_global_mean_std('./maiac/CA_2018_2023')
-    calculate_global_mean_std_incremental('./maiac/CA_2018_2023')
+    mean, std = calculate_global_mean_std_incremental('./maiac/CA_2018_2023')
+    print(f'CA Mean = {mean}')
+    print(f'CA std = {std}')

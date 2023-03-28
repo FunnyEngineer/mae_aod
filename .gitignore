@@ -1,3 +1,4 @@
 output_dir/*
 */__pycache__/*
 __ptcache__/*
+*.pyc 

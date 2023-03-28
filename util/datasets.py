@@ -77,7 +77,7 @@ def hdf_aod_loader(path: str, code: str, order: str) -> Any:
     data = hdf_file.select(f'Optical_Depth_{code}')[:][order]
     data = data.astype(np.float16)
     data[data == -28672] = np.nan
-    data = data * 0.001
+    # data = data * 0.001
     data = data[np.newaxis, ...]
     return torch.from_numpy(data)
 
@@ -103,7 +103,7 @@ class AODDataset(Dataset):
         self.root = root
         self.transform = transform
         self.target_transform = target_transform
-        data_df = pd.read_csv(table_file, indexl_col=0)
+        data_df = pd.read_csv(table_file, index_col=0)
         samples = self.make_dataset(self.root, data_df)
         
         self.root = root
@@ -111,7 +111,7 @@ class AODDataset(Dataset):
         self.loader = loader
         
         self.samples = samples
-        self.targets = [s[1] for s in samples]
+        self.targets = [s[2] for s in samples]
     
     @staticmethod
     def make_dataset(directory: str, data_df:pd.DataFrame):

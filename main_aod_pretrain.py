@@ -35,7 +35,7 @@ from util.add_weight_decay import add_weight_decay
 
 import models_mae
 
-from engine_pretrain import train_one_epoch
+from engine_aod_pretrain import train_one_epoch
 
 
 def get_args_parser():
@@ -47,7 +47,7 @@ def get_args_parser():
                         help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
 
     # Model parameters
-    parser.add_argument('--model', default='mae_vit_large_patch16', type=str, metavar='MODEL',
+    parser.add_argument('--model', default='mae_vit_base_patch16', type=str, metavar='MODEL',
                         help='Name of model to train')
 
     parser.add_argument('--input_size', default=224, type=int,
@@ -126,9 +126,10 @@ def main(args):
     # TODO: take some transforms out since the data format is different
     transform_train = transforms.Compose([
             # transforms.ToTensor(),
-            transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
+            transforms.RandomCrop(args.input_size),
+            # transforms.RandomResizedCrop(args.input_size, scale=(0.2, 1.0), interpolation=3),  # 3 is bicubic
             transforms.RandomHorizontalFlip(),
-            transforms.Normalize(mean=[0.485], std=[0.229])])
+            transforms.Normalize(mean=[0], std=[97.445])]) # mean=[99.763], std=[97.445]
     # TODO: Write a custom dataset for aod data
     dataset_train = AODDataset('./maiac/CA_2018_2023', table_file='cover_ratio.csv', aod_code='055', transform=transform_train)
     # dataset_train = datasets.ImageFolder(os.path.join(args.data_path, 'train'), transform=transform_train)
