@@ -25,4 +25,9 @@ max         0.944073
 2. The pytorch transform function and experimental size:
     Since the original repo for training image is 224, which is mismatch with the size of AOD image (1200), we modified the function RandomResizedCrop to RandomCrop. 
     We could modified more sub image for the AOD dataset.
+
+### 2023.03.30
+
+1. stuck on the aod dataset since the nan value
+2. we found the random masking is not masking the raw image, instead, it is masking the latent which transfer by the patch embed layer
 3. 
