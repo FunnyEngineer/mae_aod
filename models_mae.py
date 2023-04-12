@@ -160,7 +160,10 @@ class MaskedAutoencoderViT(nn.Module):
 
     def forward_encoder(self, x, mask_ratio):
         # embed patches
-        x = self.patch_embed(x)
+        new_x = self.patch_embed(x)
+        for sin_img in x:
+            print(1 - torch.isnan(sin_img).sum() / torch.numel(sin_img))
+        pdb.set_trace()
 
         # add pos embed w/o cls token
         x = x + self.pos_embed[:, 1:, :]
@@ -222,15 +225,22 @@ class MaskedAutoencoderViT(nn.Module):
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
         loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
-        pdb.set_trace()
         return loss
 
     def forward(self, imgs, ori_cover_ratio, mask_ratio=0.75):
+        print(ori_cover_ratio)
         latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
 
+
+def mae_vit_base_patch1_dec512d8b_aod_test(**kwargs):
+    model = MaskedAutoencoderViT(
+        patch_size=1, embed_dim=768, depth=12, num_heads=12,
+        decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
+        mlp_ratio=4, norm_layer=partial(nn.LayerNorm, eps=1e-6), **kwargs)
+    return model
 
 def mae_vit_base_patch16_dec512d8b(**kwargs):
     model = MaskedAutoencoderViT(
@@ -257,6 +267,7 @@ def mae_vit_huge_patch14_dec512d8b(**kwargs):
 
 
 # set recommended archs
-mae_vit_base_patch16 = mae_vit_base_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
+# TODO: unchanged archs after testing the patch size
+mae_vit_base_patch16 = mae_vit_base_patch1_dec512d8b_aod_test  # decoder: 512 dim, 8 blocks
 mae_vit_large_patch16 = mae_vit_large_patch16_dec512d8b  # decoder: 512 dim, 8 blocks
 mae_vit_huge_patch14 = mae_vit_huge_patch14_dec512d8b  # decoder: 512 dim, 8 blocks

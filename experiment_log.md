@@ -31,3 +31,31 @@ max         0.944073
 1. stuck on the aod dataset since the nan value
 2. we found the random masking is not masking the raw image, instead, it is masking the latent which transfer by the patch embed layer
 3. 
+
+### 2023.04.12
+
+1. List the detail forward process of MAE:
+    1. forward encoder:
+        1. patch embed
+        2. positional embed
+        3, random masking
+        4. cls token
+        5. apply transformer block
+    2. forward decoder:
+        1, decoder embed
+        2. append mask tokens to sequence
+        3. add positional embed
+        4. apply transformer block
+        5. predictor projection -> a Linear Layer
+        6. remove cls token
+    3. forward loss:
+        1. patchify the raw images
+        2. MSE loss
+        3. mean loss per patch
+        4. mean loss on removed patches
+
+2.  related to the arch, let's think about the modify that 
+    1. We have nan values in original images, which made us have to move the masking in the first stemp in forward encoder.
+    2. patch embed is using conv2d to change sub-image to singal. However, since we have nan values in nearby pixels. Does that will increase the cover ratio? 
+
+Reply to 2-2. After resizing the image, the cover ratio will decrease! What we should do is -> instead of creating the positional embeding layers for patched images, creating that for raw images -> which means to do the pixel-wise encoding. If we do this, another 
