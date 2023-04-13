@@ -158,6 +158,7 @@ class MaskedAutoencoderViT(nn.Module):
         N, D, W, H = x.shape  # batch, input_dim, img width, img height
         x = x.reshape(N, D*W*H)
         return (~torch.isnan(x)).long()
+    
     def aod_random_masking(self, x, mask_ratio, ori_mask):
         """
         Perform per-sample random masking by per-sample shuffling.
@@ -167,26 +168,29 @@ class MaskedAutoencoderViT(nn.Module):
         """
         N, L, D = x.shape  # batch, input_dim, img width, img height
         len_keep = int(L * (1 - mask_ratio))
-        for sin_img in x:
-            cov_ratio = ori_mask.sum() / torch.numel(sin_img)
+        sample_apply = torch.zeros(N, device=x.device)
+        new_mask = []
+        for i, sin_img, sin_mask in enumerate(zip(x, ori_mask)):
+            cov_ratio = sin_mask.sum() / torch.numel(sin_img)
             if cov_ratio > mask_ratio:
-                len_mask = ori_mask.sum() - len_keep # num pixels that we still have to mask
+                len_mask = sin_mask.sum() - len_keep # num pixels that we still have to mask
                 noise = torch.rand(len_mask, device=x.device)  # noise in [0, 1]
                 
                 # sort noise for each exist sample
                 ids_shuffle = torch.argsort(noise, dim=0)  # ascend: small is keep, large is remove
                 ids_restore = torch.argsort(ids_shuffle, dim=1)
-                ids_exist = torch.nonzero(ori_mask).flatten()
+                ids_exist = torch.nonzero(sin_mask).flatten()
         
-                # keep the first subset
-                ids_keep = ids_shuffle[:, :len_mask]
-                sing_img = torch.gather(sin_img, )
+                # cover
+                sin_mask[ids_exist[ids_shuffle[:len_keep]]] = 0
+
+                # mark the sample as applicable
+                sample_apply[i] = 1
+                new_mask.append(sin_mask)
                 
-                
-        x = x[cov_ratio > mask_ratio]
+        x = x[sample_apply][new_mask]
         
-        pdb.set_trace()
-        return 
+        return x, new_mask
 
     def forward_encoder(self, x, mask_ratio):
         # TODO: add the masking and extract to the shape (bs, 1, signal))
