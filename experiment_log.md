@@ -59,3 +59,10 @@ max         0.944073
     2. patch embed is using conv2d to change sub-image to singal. However, since we have nan values in nearby pixels. Does that will increase the cover ratio? 
 
 Reply to 2-2. After resizing the image, the cover ratio will decrease! What we should do is -> instead of creating the positional embeding layers for patched images, creating that for raw images -> which means to do the pixel-wise encoding. If we do this, another 
+
+#### 2023.04.13
+
+1. Let's move the masking step toward the patch
+    1, examine the cover ratio if it reach 0.25
+        if not, trim that batch
+    2. 

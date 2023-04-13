@@ -149,37 +149,75 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x_masked, mask, ids_restore
     
-    def aod_random_masking(self, x, mask_ratio):
+    def original_masking(self, x):
+        """generate mask for original image in sequence
+
+        Args:
+            x: [N, L, H, W] 
+        """
+        N, D, W, H = x.shape  # batch, input_dim, img width, img height
+        x = x.reshape(N, D*W*H)
+        return (~torch.isnan(x)).long()
+    def aod_random_masking(self, x, mask_ratio, ori_mask):
         """
         Perform per-sample random masking by per-sample shuffling.
         Per-sample shuffling is done by argsort random noise.
         x: [N, L, D], sequence
+        ori_mask: [N, L], original mask
         """
-        N, L, D = x.shape  # batch, length, dim
+        N, L, D = x.shape  # batch, input_dim, img width, img height
+        len_keep = int(L * (1 - mask_ratio))
+        for sin_img in x:
+            cov_ratio = ori_mask.sum() / torch.numel(sin_img)
+            if cov_ratio > mask_ratio:
+                len_mask = ori_mask.sum() - len_keep # num pixels that we still have to mask
+                noise = torch.rand(len_mask, device=x.device)  # noise in [0, 1]
+                
+                # sort noise for each exist sample
+                ids_shuffle = torch.argsort(noise, dim=0)  # ascend: small is keep, large is remove
+                ids_restore = torch.argsort(ids_shuffle, dim=1)
+                ids_exist = torch.nonzero(ori_mask).flatten()
+        
+                # keep the first subset
+                ids_keep = ids_shuffle[:, :len_mask]
+                sing_img = torch.gather(sin_img, )
+                
+                
+        x = x[cov_ratio > mask_ratio]
+        
+        pdb.set_trace()
         return 
 
     def forward_encoder(self, x, mask_ratio):
+        # TODO: add the masking and extract to the shape (bs, 1, signal))
+        # self.aod_random_masking(x, mask_ratio)
+        ori_mask = self.original_masking(x)
+        x[torch.isnan(x)] = 0
+        # MODIFIED: set patch_size=1, so the patch_embed is a 1x1 conv
         # embed patches
-        new_x = self.patch_embed(x)
-        for sin_img in x:
-            print(1 - torch.isnan(sin_img).sum() / torch.numel(sin_img))
-        pdb.set_trace()
-
+        # print(x.shape)
+        x = self.patch_embed(x)
+        
         # add pos embed w/o cls token
         x = x + self.pos_embed[:, 1:, :]
+        print(x.shape)
 
         # masking: length -> length * mask_ratio
         x, mask, ids_restore = self.random_masking(x, mask_ratio)
+        print(x.shape)
 
         # append cls token
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
         cls_tokens = cls_token.expand(x.shape[0], -1, -1)
         x = torch.cat((cls_tokens, x), dim=1)
+        print(x.shape)
 
         # apply Transformer blocks
         for blk in self.blocks:
             x = blk(x)
+        print(x.shape)
         x = self.norm(x)
+        pdb.set_trace()
 
         return x, mask, ids_restore
 
