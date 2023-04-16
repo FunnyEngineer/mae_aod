@@ -1,0 +1,1 @@
+sshpass -p 'crazydrummer8911211' rsync -avzh ./ td25238@tornado3.geo.utexas.edu:~/Documents/mae_aod/

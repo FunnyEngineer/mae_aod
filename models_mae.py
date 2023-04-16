@@ -145,7 +145,7 @@ class MaskedAutoencoderViT(nn.Module):
         mask = torch.ones([N, L], device=x.device)
         mask[:, :len_keep] = 0
         # unshuffle to get the binary mask
-        mask = torch.gather(mask, dim=1, index=ids_restore)
+        mask = torch.gather(mask, dim=1, index=ids_restore) 
 
         return x_masked, mask, ids_restore
     
@@ -168,37 +168,44 @@ class MaskedAutoencoderViT(nn.Module):
         """
         N, L, D = x.shape  # batch, input_dim, img width, img height
         len_keep = int(L * (1 - mask_ratio))
-        sample_apply = torch.zeros(N, device=x.device, dtype=torch.bool)
+        batch_mask = torch.zeros(N, device=x.device, dtype=torch.bool)
         masked_mask = []
         masked_x = []
-        for i, (sin_img, sin_mask) in enumerate(zip(x, ori_mask)):
+        ids_restore = []
+        for i, (sin_img, sin_mask) in enumerate(zip(x, ori_mask)): # the mask -> 1 is keep, 0 is remove
             cov_ratio = sin_mask.sum() / L
             
             if cov_ratio > (1-mask_ratio):
                 len_mask = sin_mask.sum() - len_keep # num pixels that we still have to mask
-                noise = torch.rand(len_mask, device=x.device)  # noise in [0, 1]
                 
-                # sort noise for each exist sample
-                ids_shuffle = torch.argsort(noise, dim=0)  # ascend: small is keep, large is remove
-                ids_restore = torch.argsort(ids_shuffle, dim=0)
-                ids_exist = torch.nonzero(sin_mask).flatten()
-        
-                # cover
-                sin_mask[ids_exist[ids_shuffle[:len_keep]]] = 0
+                # pick keep index and shuffle
+                ids_exist = torch.nonzero(sin_mask).flatten() # get the indices of existing mask
+                ids_random = torch.randperm(len(ids_exist), device=x.device)
+                ids_shuffle = torch.cat([ids_exist[ids_random], torch.nonzero(~sin_mask).flatten()], dim=0)
+                sin_ids_restore = torch.argsort(ids_shuffle, dim=0)
+
+                new_mask = torch.clone(sin_mask)
+                new_mask[ids_shuffle[len_keep:]] = 0 
+
+                ids_keep = ids_shuffle[:len_keep]
+                x_masked = torch.gather(sin_img, dim=0, index=ids_keep.unsqueeze(-1).repeat(1, D))
 
                 # mark the sample as applicable
-                sample_apply[i] = 1
-                masked_mask.append(sin_mask.reshape(1, -1))
-                masked_x.append(sin_img[sin_mask].unsqueeze(0))
+                batch_mask[i] = 1
+                masked_mask.append(new_mask.reshape(1, -1))
+                masked_x.append(x_masked.unsqueeze(0)) # apply the mask but not shuffle
+                ids_restore.append(sin_ids_restore.unsqueeze(0))
         
-        if sample_apply.sum() == 0:
-            return None, None
+        if batch_mask.sum() == 0:
+            return None, None, None, None
         
         # concat the masked samples
         masked_mask = torch.cat(masked_mask, dim=0)
+        masked_mask = ~masked_mask # transform to 0 is keep, 1 is remove
         masked_x = torch.cat(masked_x, dim=0)
+        ids_restore = torch.cat(ids_restore, dim=0)
         
-        return masked_x, masked_mask
+        return masked_x, masked_mask, ids_restore, batch_mask
 
     def forward_encoder(self, x, mask_ratio):
         ori_mask = self.original_masking(x)
@@ -212,12 +219,11 @@ class MaskedAutoencoderViT(nn.Module):
 
         # masking: length -> length * mask_ratio
         # TODO: add the masking and extract to the shape (bs, embed_dim, signal))
-        x, mask, ids_restore = self.random_masking(x, mask_ratio)
-        # x, masked_mask = self.aod_random_masking(x, mask_ratio, ori_mask)
+        x, masked_mask, ids_restore, batch_mask = self.aod_random_masking(x, mask_ratio, ori_mask)
         
         # MODIFIED: to avoid the not any samples passed the cover ratio
         if x is None:
-            return None, None
+            return None, None, None, None
 
         # append cls token
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
@@ -229,17 +235,14 @@ class MaskedAutoencoderViT(nn.Module):
             x = blk(x)
         x = self.norm(x)
 
-        return x, mask, ids_restore
-        # return x, masked_mask
+        # return x, mask, ids_restore
+        return x, masked_mask, ids_restore, ori_mask, batch_mask
 
     def forward_decoder(self, x, ids_restore):
         # embed tokens
-        print(x.shape)
         x = self.decoder_embed(x)
-        print(x.shape)
 
         # append mask tokens to sequence
-        print(x.shape)
         mask_tokens = self.mask_token.repeat(x.shape[0], ids_restore.shape[1] + 1 - x.shape[1], 1)
         x_ = torch.cat([x[:, 1:, :], mask_tokens], dim=1)  # no cls token
         x_ = torch.gather(x_, dim=1, index=ids_restore.unsqueeze(-1).repeat(1, 1, x.shape[2]))  # unshuffle
@@ -261,13 +264,15 @@ class MaskedAutoencoderViT(nn.Module):
 
         return x
 
-    def forward_loss(self, imgs, pred, mask):
+    def forward_loss(self, imgs, pred, mask, batch_mask, ori_mask):
         """
         imgs: [N, 3, H, W]
         pred: [N, L, p*p*3]
         mask: [N, L], 0 is keep, 1 is remove, 
+        batch_mask: [N], decide which sample is applicable, 
         """
-        target = self.patchify(imgs)
+        ori_mask = ori_mask[batch_mask] # origimal mask are using 1 is keep, 0 is remove
+        target = self.patchify(imgs[batch_mask])
         if self.norm_pix_loss:
             mean = target.mean(dim=-1, keepdim=True)
             var = target.var(dim=-1, keepdim=True)
@@ -276,18 +281,19 @@ class MaskedAutoencoderViT(nn.Module):
         loss = (pred - target) ** 2
         loss = loss.mean(dim=-1)  # [N, L], mean loss per patch
 
-        loss = (loss * mask).sum() / mask.sum()  # mean loss on removed patches
+        loss = (loss * mask * ori_mask).sum() / (mask * ori_mask).sum()  # mean loss on removed patches10
         return loss
 
     def forward(self, imgs, mask_ratio=0.75):
-        latent, mask, ids_restore = self.forward_encoder(imgs, mask_ratio)
-        
+        latent, mask, ids_restore, ori_mask, batch_mask = self.forward_encoder(imgs, mask_ratio)
+        # latent, mask = self.forward_encoder(imgs, mask_ratio)
+
         # MODIFIED: to avoid the not any samples passed the cover ratio
         if latent is None:
             return None, None, None
         
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*3]
-        loss = self.forward_loss(imgs, pred, mask)
+        loss = self.forward_loss(imgs, pred, mask, batch_mask, ori_mask)
         return loss, pred, mask
 
 

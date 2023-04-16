@@ -66,3 +66,7 @@ Reply to 2-2. After resizing the image, the cover ratio will decrease! What we s
     1, examine the cover ratio if it reach 0.25
         if not, trim that batch
     2. 
+
+#### 2023.04.15
+
+1. I stuck at the ids_restore -> that is the argsort of the ids_shuffle which is the 
