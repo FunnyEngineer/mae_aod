@@ -70,3 +70,8 @@ Reply to 2-2. After resizing the image, the cover ratio will decrease! What we s
 #### 2023.04.15
 
 1. I stuck at the ids_restore -> that is the argsort of the ids_shuffle which is the 
+
+
+#### 2023.04.16
+
+1. Sorting the mask with the loss calculation -> since the original images are fragmental, the original mask are applied in the loss calculation to filter out the loss that counted on the original nan values.
