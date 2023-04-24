@@ -223,7 +223,7 @@ class MaskedAutoencoderViT(nn.Module):
         
         # MODIFIED: to avoid the not any samples passed the cover ratio
         if x is None:
-            return None, None, None, None
+            return None, None, None, None, None
 
         # append cls token
         cls_token = self.cls_token + self.pos_embed[:, :1, :]
